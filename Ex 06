@@ -1,47 +1,102 @@
-SYSTEM CALL TRACING
+IPC USING SHARED MEMORY
 
-Aim:
+AIM:
 
-To write a C program and trace system calls used and print the same in ascending order using
-shell script.
+To write a C program to do Inter Process Communication (IPC) using shared memory
+between sender process and receiver process.
 
 Algorithm:
 
-1. Create a C program with an output statement helloworld.
-2. Compile and trace system calls while executing the executable file.
-3.The output of the system calls trace is put in hellotrace file.
-4.Shellscript to read the contents of hellotrace file and print only system call name as output.
+SENDER
 
-PROGRAM:
+1. Set the size of the shared memory segment
+2. Allocate the shared memory segment using shmget
+3. Attach the shared memory segment using shmat
+4. Write a string to the shared memory segment using sprintf
+5. Set delay using sleep
+6. Detach shared memory segment using shmdt
 
-#include<signal.h>
-#include<unistd.h>
-#include<stdlib.h>
-#include<stdio.h>
-void my_handler(int sig);
-int main()
+RECEIVER
+
+1. Set the size of the shared memory segment
+2. Allocate the shared memory segment using shmget
+3. Attach the shared memory segment using shmat
+4. Print the shared memory contents sent by the sender
+process.
+5. Detach shared memory segment using shmdt
+
+Program Code:
+
+sender.c
+
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#define SharedMemSize 50
+void main()
 {
-	struct sigaction my_action;
-	my_action.sa_handler=my_handler;
-	my_action.sa_flags=SA_RESTART;
-	sigaction(SIGINT,&my_action,NULL);
-	printf("Catching SIGINT\n");
-	sleep(3);
-	printf("No SIGINT within 3 seconds\n");
-	my_action.sa_handler=SIG_IGN;
-	my_action.sa_flags=SA_RESTART;
-	sigaction(SIGINT,&my_action,NULL);
-	printf("Ignoring SIGINT\n");
-	sleep(3);
-	printf("Sleep is over\n");
-	my_action.sa_handler=SIG_DFL;
-	my_action.sa_flags=SA_RESTART;
-	sigaction(SIGINT,&my_action,NULL);
-	sleep(3);
-	printf("No SIGINT within 3 seconds\n");
-}
-void my_handler(int sig)
-{
-	printf("\t I got SIGINT,number%d\n",sig);
+	char c;
+	int shmid;
+	key_t key;
+	char *shared_memory;
+	key = 5677;
+	if ((shmid = shmget(key, SharedMemSize, IPC_CREAT | 0666)) < 0)
+	{
+		perror("shmget");
+		exit(1);
+	}
+	if((shared_memory= shmat(shmid, NULL, 0)) == (char *) -1)
+	{
+		perror("shmat");
+		exit(1);
+	}
+	printf(shared_memory," Welcome to Shared Memory");
+	sleep(2);
 	exit(0);
 }
+
+receiver.c
+
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#include <stdlib.h>
+#define SharedMemSize 50
+void main()
+{
+	int shmid;
+	key_t key;
+	char *shared_memory;
+	key = 5677;
+	if ((shmid = shmget(key, SharedMemSize, 0666)) < 0)
+	{
+		perror("shmget");
+		exit(1);
+	}
+	if((shared_memory = shmat(shmid, NULL, 0))==(char *) -1)
+	{
+		perror("shmat");
+		exit(1);
+	}
+	printf("Message Received: %s \n",shared_memory);
+	exit(0);
+}
+
+
+Output:
+
+Terminal 1
+
+[root@localhost student]# gcc sender.c -o sender
+[root@localhost student]# ./sender
+
+Terminal 2
+
+[root@localhost student]# gcc receiver.c -o receiver
+[root@localhost student]# ./receiver
+Message Received: Welcome to Shared Memory
+[root@localhost student]#
